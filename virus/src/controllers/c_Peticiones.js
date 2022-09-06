@@ -14,12 +14,13 @@ puppeteer.use(
     RecaptchaPlugin({
       provider: {
         id: '2captcha',
-        token: 'd3775bde276537555d4c0fe8123daadc' // REPLACE THIS WITH YOUR OWN 2CAPTCHA API KEY ⚡
+        token: '' // REPLACE THIS WITH YOUR OWN 2CAPTCHA API KEY ⚡
       },
       visualFeedback: true // colorize reCAPTCHAs (violet = detected, green = solved)
     })
 )
 
+//CERRAR SESION QUITAR
 const controllerPeticiones = {
     cerrarSesion: async function(req, res){
         const {id} = req.params
@@ -31,13 +32,26 @@ const controllerPeticiones = {
         }
     }, 
     userAgregarSolicitud: async function(req, res){
-        const {id, placa} = req.params
+        const {id, placa, id_TM} = req.params
         try {
             await poolQuery.query(`insert into T_Solicitudes_Vehicular (id_usuario, placa, fecha_solicitud) values (?,?,now())`, [id, placa])
-            const cantidadSolicitud =  await poolQuery.query(`select * from T_Usu_Mem where id_usuario = ?`, [id])
+            const cantidadSolicitud = await poolQuery.query(`select * from T_Usu_Mem where id_usuario = ? and id = ?`, [id, id_TM])
             const solicitud = cantidadSolicitud[0]
             let cantMa = parseInt(solicitud.cantRealizadas)+1
-            await poolQuery.query(`UPDATE T_Usu_Mem set cantRealizadas = ? where id_usuario = ? `, [cantMa, id])
+            await poolQuery.query(`UPDATE T_Usu_Mem set cantRealizadas = ? where id_usuario = ? and id = ?`, [cantMa, id, id_TM])
+            return res.send({res: true})
+        } catch (error) {
+            return res.send({error: 'Error conexión.'})
+        }
+    }, 
+    userAgregarSolicitudReniec: async function(req, res){
+        const {id, dni, id_TM} = req.params
+        try {
+            await poolQuery.query(`insert into T_Solicitudes_Reniec(id_usuario, dni, fecha_solicitud) values (?,?,now())`, [id, dni])
+            const cantidadSolicitud = await poolQuery.query(`select * from T_Usu_Mem where id_usuario = ? and id = ?`, [id, id_TM])
+            const solicitud = cantidadSolicitud[0]
+            let cantMa = parseInt(solicitud.cantRealizadas)+1
+            await poolQuery.query(`UPDATE T_Usu_Mem set cantRealizadas = ? where id_usuario = ? and id = ?`, [cantMa, id, id_TM])
             return res.send({res: true})
         } catch (error) {
             return res.send({error: 'Error conexión.'})
@@ -52,11 +66,19 @@ const controllerPeticiones = {
             return res.send({error: 'Error conexión.'})
         }
     }, 
+    userHistorialSolicitudesReniec: async function(req, res){
+        const {id} = req.params
+        try {
+            const resSolicitud = await poolQuery.query(`select * from T_Solicitudes_Reniec where id_usuario = ? order by fecha_solicitud desc limit 50`, [id])
+            return res.send(resSolicitud)
+        } catch (error) {
+            return res.send({error: 'Error conexión.'})
+        }
+    }, 
     userCompraMenbresia: async function(req, res){
         const {id, id_usuario, id_membresia, cantSolicitudes, diasContratador} = req.body
         try {
             const fechaTermino = moment().add(diasContratador, 'days').format('YYYY-MM-DD')
-            //await poolQuery.query(`INSERT INTO T_Usu_Mem(id_usuario, id_membresia, fechaAplicacion,	fechaTermino, cantSolicitudes) values(?,?,now(),?,?)`, [id_usuario, id_membresia, fechaTermino, cantSolicitudes])
             await poolQuery.query(`UPDATE T_Usu_Mem set id_membresia = ?, fechaAplicacion = now(), fechaTermino = ?, cantSolicitudes = ? where id_usuario = ? and id = ?`, [id_membresia, fechaTermino, cantSolicitudes, id_usuario, id])
             const planActual = await poolQuery.query(`SELECT tum.*, tm.descripcion  FROM T_Usu_Mem tum inner join T_Membresia tm on tm.id = tum.id_membresia  WHERE tum.id  = ?`, [id])
             let plan = planActual[0]
@@ -86,14 +108,15 @@ const controllerPeticiones = {
             const user = resUser[0]
             if(user.password !== password) return res.send({error: 'Credenciales incorrectas.'})
             await poolQuery.query(`update T_Usuarios set token = ?, estado_envio_token = '01' where telefono = ?`, [token, telefono])
-            const planActivo = await poolQuery.query(`select t_u_m.*, t_m.descripcion, t_t_m.descripcion
+            const planActivo = await poolQuery.query(`select t_u_m.*, t_m.descripcion descripcion_plan, t_t_m.descripcion
                 from T_Usu_Mem t_u_m 
                 inner join T_Usuarios t_u on t_u_m.id_usuario = t_u.id 
                 inner join T_Membresia t_m on t_u_m.id_membresia = t_m.id
                 inner join T_Tipo_Menbresia t_t_m on t_m.id_tipo_menbresia = t_t_m.id
                 where t_u.telefono = ? and t_m.estado = '01' and t_u.estado = '01'
                 order by t_t_m.descripcion ASC;`, [telefono])
-            let plan = null
+            let planVehicular = null
+            let planReniec = null
             if(planActivo.length < 1){
                 plan = {
                     fechaAplicacion :  0,
@@ -103,10 +126,11 @@ const controllerPeticiones = {
                     descripcion: '-'
                 }
             }else{
-                plan =  planActivo[0]
+                planVehicular =  planActivo[1]
+                planReniec =  planActivo[0]
             }
             jwt.sign({user}, 'secretkey', {expiresIn: '365d'},(err, token) => {
-                return res.status(200).send({token, user, plan})
+                return res.status(200).send({token, user, planVehicular, planReniec})
             })
         } catch (error) {
             return res.send({error: 'Error de servidor.'})
@@ -114,17 +138,17 @@ const controllerPeticiones = {
     }, 
     userCreateBD: async function(req, res){
         const {correo, telefono, password} = req.body
-        const {token} = req.params
+        const {token:token_expo} = req.params
         try {
             const resUser = await poolQuery.query(`select * from T_Usuarios where telefono = ?`, [telefono])
             if(resUser.length > 0) return res.send({error: 'Usuario ya se encuentra registrado.'})
-            await poolQuery.query(`INSERT INTO T_Usuarios (correo, telefono, password, estado, token, estado_envio_token) values (?,?,?, '01', ?, '01')`, [correo, telefono, password, token])
+            await poolQuery.query(`INSERT INTO T_Usuarios (correo, telefono, password, estado, token, estado_envio_token) values (?,?,?, '01', ?, '01')`, [correo, telefono, password, token_expo])
             const login = await poolQuery.query(`select id, telefono, correo  from T_Usuarios where telefono = ? and estado = '01'`, [telefono])
             const user = login[0]
             const fechaTermino = moment().add(90, 'days').format('YYYY-MM-DD')
             await poolQuery.query(`INSERT INTO T_Usu_Mem(id_usuario, id_membresia, fechaAplicacion,	fechaTermino, cantSolicitudes) values(?,?,now(),?,?)`, [user.id, 5, fechaTermino, 50])
             await poolQuery.query(`INSERT INTO T_Usu_Mem(id_usuario, id_membresia, fechaAplicacion,	fechaTermino, cantSolicitudes) values(?,?,now(),?,?)`, [user.id, 10, fechaTermino, 50])
-            const planActivo = await poolQuery.query(`select t_u_m.*, t_m.descripcion, t_t_m.descripcion
+            const planActivo = await poolQuery.query(`select t_u_m.*, t_m.descripcion descripcion_plan, t_t_m.descripcion
             from T_Usu_Mem t_u_m 
             inner join T_Usuarios t_u on t_u_m.id_usuario = t_u.id 
             inner join T_Membresia t_m on t_u_m.id_membresia = t_m.id
@@ -132,8 +156,8 @@ const controllerPeticiones = {
             where t_u.telefono = ? and t_m.estado = '01' and t_u.estado = '01'
             order by t_t_m.descripcion ASC;`, [telefono])
             console.log(planActivo)
-            let planVehicular =  planActivo[0]
-            let planReniec =  planActivo[1]
+            let planVehicular =  planActivo[1]
+            let planReniec =  planActivo[0]
             jwt.sign({user}, 'secretkey', {expiresIn: '365d'},(err, token) => {
                 return res.status(200).send({token, user, planVehicular, planReniec})
             })
@@ -144,7 +168,7 @@ const controllerPeticiones = {
     planesBD: async function(req, res){
         const {tipo} = req.params
         try{
-            const resMenbresias = await poolQuery.query(`select * from T_Membresia where estado = '01' and id <> 5 and id_tipo_menbresia = ?`, [tipo])
+            const resMenbresias = await poolQuery.query(`select * from T_Membresia where estado = '01' and id not in (5, 10) and id_tipo_menbresia = ?`, [tipo])
             return res.send(resMenbresias) 
         }catch(e){
             return res.send({
@@ -165,6 +189,9 @@ const controllerPeticiones = {
             return res.send({ error: 'Sin conexión.' })
         }
     },
+
+
+
     consultarDNI: async function(req, res){
         const {dni} = req.params
         try{
