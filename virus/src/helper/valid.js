@@ -27,26 +27,26 @@ async function resolve_captcha(captcha_file_path) {
             key: API_KEY,
             method: 'base64',
             body: captcha_file_path,
-            json: true
+            json: true,
+            regsense:1,
+            numeric:4
         }
     });
     let parsed_captcha_id = JSON.parse(unparsed_captcha_id);
     let captcha_id = parsed_captcha_id.request;
 
-    while(1) {
-
-        await sleep(10);
+    while(1) {        
+        await sleep(5);
         let captcha_ready = await curl({
             method: 'GET',
             url: `https://2captcha.com/res.php?key=${API_KEY}&action=get&id=${captcha_id}&json=true`
         });
-
+        
         let parsed_captcha_ready = JSON.parse(captcha_ready);
         if(parsed_captcha_ready.status == 1)
-            return parsed_captcha_ready.request;
+        return parsed_captcha_ready.request;
         else if(parsed_captcha_ready.request != "CAPCHA_NOT_READY")
-            return false;
-
+        return false;
     }
 
 }

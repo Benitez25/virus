@@ -17,6 +17,7 @@ router.get('/userNotificationBD/:id', cPeticiones.userNotificationBD)
 
 router.get('/consultarDNI/:dni', cPeticiones.consultarDNI)
 router.post('/consultarDNI_Placa', cPeticiones.consultarDNI_Placa)
+router.get('/consultarLicenciaMoto/:dni', cPeticiones.consultarLicenciaMoto)
 router.get('/consultaBreveteCarro/:dni', cPeticiones.consultaBreveteCarro)
 router.get('/frmConsultaPlacaITV/:placa', cPeticiones.frmConsultaPlacaITV)
 router.get('/apeseg/:placa', cPeticiones.apeseg)

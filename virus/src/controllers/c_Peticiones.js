@@ -245,6 +245,31 @@ const controllerPeticiones = {
             }})
         }
     },
+    consultarLicenciaMoto: async function(req, res){
+        const {dni} = req.params
+        try{
+            const browser = await puppeteer.launch();
+            const page = await browser.newPage()
+            await page.goto("https://licencias-tramite.mtc.gob.pe/frmLB_Consulta.aspx")
+            let resultado = await Promise.all([
+                page.type("#ContentPlaceHolder2_txtC01_NumDocumento", dni),
+                page.evaluate(() => { return document.querySelector('#ContentPlaceHolder2_imgCaptcha').src })
+            ])
+            const img64 = await run(resultado[1])
+            await page.type("#ContentPlaceHolder2_txtCaptcha", img64)
+            await page.waitForTimeout(1000)
+            await page.waitForSelector('#ContentPlaceHolder2_lbtnC01_Consultar')
+            await page.click('#ContentPlaceHolder2_lbtnC01_Consultar')
+            await page.waitForTimeout(1000)
+            let respuesta = await page.evaluate(() => {
+                return document.querySelector('#ContentPlaceHolder2_lblC01_Pos_C').innerText
+            })
+            return res.send({res:respuesta})     
+            
+        }catch(e){
+            return res.send({res:'Tiempo de conexión agotado.'})
+        }
+    },
     consultaBreveteCarro: async function(req, res){
         const {dni} = req.params
         
