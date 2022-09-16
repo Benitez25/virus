@@ -2,6 +2,8 @@ const express = require('express')
 const router = express.Router()
 const cPeticiones = require('../controllers/c_Peticiones')
 
+router.get('/pago', cPeticiones.pago)
+
 router.get('/cerrarSesion/:id', cPeticiones.cerrarSesion)
 
 router.get('/planesBD/:tipo', cPeticiones.planesBD)

@@ -1,12 +1,18 @@
 const jwt = require('jsonwebtoken');
 const puppeteer = require('puppeteer-extra')
 const RecaptchaPlugin = require('puppeteer-extra-plugin-recaptcha')
-const { run } = require('../helper/valid');
+const { run } = require('../helper/valid')
 const poolQuery = require('../../database')
 const axios = require('axios').default;
-const JSSoup = require('jssoup').default;
+const JSSoup = require('jssoup').default
 const axiosInstance = axios.create({ withCredentials: true })
 const moment = require('moment')
+
+// SDK de Mercado Pago
+const mercadopago = require ('mercadopago');
+mercadopago.configure({
+    access_token: 'TEST-1749557638064759-090910-66cfbc5e4d1d307c5ae321e8db0f3246-1195018132'
+})
 
 var {PassThrough} = require("stream");
 
@@ -22,6 +28,24 @@ puppeteer.use(
 
 //CERRAR SESION QUITAR
 const controllerPeticiones = {
+    pago: async function(req, res){
+        let preference = {
+            items: [
+              {
+                title:"123",
+                unit_price: parseInt(1),
+                quantity: 1,
+              }
+            ]
+        };
+        mercadopago.preferences.create(preference)
+        .then(function(response){
+            res.send({response})           
+        }).catch(function(error){
+            res.send({error})
+        });
+    },
+
     cerrarSesion: async function(req, res){
         const {id} = req.params
         try {
