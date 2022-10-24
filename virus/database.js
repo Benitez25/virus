@@ -2,10 +2,10 @@ const mysql = require('mysql')
 const {promisify} = require('util')
 
 const pool = mysql.createPool({
-    host: '45.132.157.204',
-    user: 'u282904317_app_car',
-    database: 'u282904317_app_car',
-    password: '$HTnacz6@x2J'
+    host: '',
+    user: '',
+    database: '',
+    password: ''
 })
 
 pool.getConnection((err, connection) => {
